@@ -1,0 +1,195 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  # -------------------------
+  # User service
+  # -------------------------
+  users_db:
+    image: postgres:17-alpine
+    env_file: ./.env
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: usersdb
+    volumes:
+      - users-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-usersdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      usersnet:
+        aliases:
+          - db
+    restart: unless-stopped
+
+  users:
+    image: ${USERS_IMAGE}
+    env_file: ./.env
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/usersdb
+    depends_on:
+      users_db:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+    networks:
+      - usersnet
+      - appnet
+    restart: unless-stopped
+
+  # -------------------------
+  # Clubs service
+  # -------------------------
+  clubs_db:
+    image: postgres:17-alpine
+    env_file: ./.env
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: clubsdb
+    volumes:
+      - clubs-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-clubsdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      clubsnet:
+        aliases:
+          - db
+    restart: unless-stopped
+
+  clubs:
+    image: ${CLUBS_IMAGE}
+    env_file: ./.env
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/clubsdb
+      - USER_SERVICE_URL=http://users:8000
+    depends_on:
+      clubs_db:
+        condition: service_healthy
+      users:
+        condition: service_started
+    ports:
+      - "8002:8000"
+    networks:
+      - clubsnet
+      - appnet
+    restart: unless-stopped
+
+  # -------------------------
+  # Payment serice
+  # -------------------------
+  payments_db:
+    image: postgres:17-alpine
+    env_file: ./.env
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: paymentsdb
+    volumes:
+      - payments-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-paymentsdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      paymentsnet:
+        aliases:
+          - db
+    restart: unless-stopped
+
+  payments:
+    image: ${PAYMENTS_IMAGE}
+    env_file: ./.env
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/paymentsdb
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      payments_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy        
+    ports:
+      - "8003:8000"
+    networks:
+      - paymentsnet
+      - appnet
+    restart: unless-stopped
+
+  # -------------------------
+  # Notification Servoice
+  # -------------------------
+  notifications_db:
+    image: postgres:17-alpine
+    env_file: ./.env
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: notificationsdb
+    volumes:
+      - notifications-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-notificationsdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      notificationsnet:
+        aliases:
+          - db
+    restart: unless-stopped
+
+  notifications:
+    image: ${NOTIFICATIONS_IMAGE}
+    env_file: ./.env
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/notificationsdb
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      notifications_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8004:8000"
+    networks:
+      - notificationsnet
+      - appnet
+    restart: unless-stopped
+
+networks:
+  usersnet:
+  clubsnet:
+  paymentsnet:
+  notificationsnet:
+  appnet:
+
+volumes:
+  users-data: {}
+  clubs-data: {}
+  payments-data: {}
+  notifications-data: {}
