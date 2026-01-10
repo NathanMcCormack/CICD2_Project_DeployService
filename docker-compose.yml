@@ -182,6 +182,26 @@ services:
       - appnet
     restart: unless-stopped
 
+  notifications_worker:
+    image: ${NOTIFICATIONS_IMAGE}
+    env_file: ./.env
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg://app:app@db:5432/notificationsdb
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+      - PAYMENTS_QUEUE=payments
+    depends_on:
+      notifications_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: ["python", "-m", "app.worker"]
+    networks:
+      - notificationsnet
+      - appnet
+    restart: unless-stopped
+
+
 networks:
   usersnet:
   clubsnet:
