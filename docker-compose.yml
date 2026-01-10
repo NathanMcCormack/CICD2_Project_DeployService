@@ -127,6 +127,7 @@ services:
       - APP_ENV=docker
       - DATABASE_URL=postgresql+psycopg://app:app@db:5432/paymentsdb
       - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
+      - USER_SERVICE_URL=http://users:8000
     depends_on:
       payments_db:
         condition: service_healthy
